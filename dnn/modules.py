@@ -5,9 +5,96 @@ from typing import Any, Optional, Union, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 import math
 import numpy as np
 
+
+def modulate(x, shift, scale):
+    """
+    Modulate signal x (B, aux, T, C)
+    with shift/scale (B, C)
+    """
+
+    x = x * (1 + scale[:, None, None, :]) + shift[:, None, None, :]
+    return x
+
+
+class SelfAttention(nn.Module):
+    """
+        SelfAttention Module, aggregates information across sequence into individual fragments
+
+        dim: int - dimensionality of the vector space of the neural representation
+        n_head: int - number of attention heads, such that dim % n_head == 0
+        kqv_bias: bool - whether to use bias for kqv linear projections
+    """
+    def __init__(self, dim: int, n_head: int=16, kqv_bias=False):
+        super().__init()
+        assert dim % n_head == 0, f"dimensionality of the neural representation :{dim} is not divisible by the specified number of attention heads: {n_head}"
+
+        
+        self.dim = dim
+        self.n_head = n_head
+        self.head_size = dim // n_head
+
+        # input should be (B, T, HW, C)
+        # or for temporal usecase (B, HW, T, C)
+
+        self.qkv = nn.Linear(dim, 3*dim, bias=kqv_bias)
+        self.proj = nn.Linear(dim, dim, bias=True)
+        self.proj.RESIDUAL_SKIP = True
+    
+    def forward(self, x):
+
+        assert x.dim() == 4, f"expected (B, aux, T, C) got {x.shape}"
+        # aux_B can be either space (temporal attention) or time (spatial attention)
+        B, aux_B, T, C = x.shape
+
+        q, k, v = self.qkv(x).chunk(3, dim=-1) # 3x(B, b, T, C)
+        q = q.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
+        k = k.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
+        v = v.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
+
+        # att = (q @ k.transpose(-1,-2)) / math.sqrt(self.head_size)
+        # att = F.softmax(att, dim=-1)
+        # y = att @ v
+
+
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=False) #(B, b, nh, T, hs)
+
+        y = y.transpose(-2, -3).contiguous().view(B, aux_B, T, C) # merge heads (B, b, T, C)
+        y = self.proj(y)
+        return y
+
+
+class GatedMLP (nn.Module):
+    """
+        gated MLP with silu activation
+        input (B, aux, T, C)
+        output (B, aux, T, C)
+
+        args:
+        mlp_ratio: float - multiplier to expand dimensionality of vectorspace within the mlp
+        bias: bool
+        dim: int - vector space dimensionality
+    """        
+    def __init__(self, dim: int, activation = lambda:nn.SiLU(), mlp_ratio: float = 4.0, bias: bool = True):
+        super().__init__()
+        self.dim = dim
+        self.n_hidden = int (mlp_ratio * dim)
+        
+        self.fc1 = nn.Linear(dim, 2 * self.n_hidden, bias=bias)
+        self.activation = activation()
+        self.fc2 = nn.Linear(self.n_hidden, dim, bias=bias)
+        self.fc2.RESIDUAL_SKIP = True
+
+    def forward(self, x):
+
+        a, b = self.fc1(x).chunk(2, dim=-1)
+        x = self.activation(a) * b
+        y = self.fc2(x)
+        return y
 
 class LabelEmbedder(nn.Module):
     """
@@ -37,19 +124,17 @@ class LabelEmbedder(nn.Module):
         
         return self.table(y)
 
-
-
-
-
 class TimeStepEmbedder(nn.Module):
     """
         Embeds scalar continuous time 't' into high dimensional vectorspace using sinusoidal embeddings,
-        then refines this vector using MLP to produce n_embd dimensional representation that is compatible with the 
+        then refines this vector using MLP to produce n_hidden dimensional representation that is compatible with the 
         DNN
     """
 
     def __init__(self, freq_embd:int, n_hidden:int, activation):
         super().__init__()
+
+        assert freq_embd > 1
         self.freq_embd = freq_embd
         self.n_hidden = n_hidden
         self.activation = activation
@@ -126,7 +211,7 @@ class TemporalEmbedder(nn.Module):
         assert frame_idx.dim() == 1, f"Frame idx tensor must be single dimensional, its : {frame_idx.shape}"
         assert frame_idx.shape[0] == self.frame_count, f"frame_count:{self.frame_count} and frame_idx:{frame_idx.shape} shape mismatch"
         
-        return self.embed_frame_idx(frame_idx, self.n_embd) # (T, C)
+        return self.embed_frame_idx(frame_idx, self.n_embd, self.max_period) # (T, C)
 
 def ntuple(n_dim: int, x):
     """
