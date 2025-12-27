@@ -14,7 +14,7 @@ class SpaceTimeBlock(nn.Module):
         args:
             dim : int - dimensionality of the neural vectorspace for each fragment of input signal
             y_dim : int - dimensionality of f(class_label, flow_time) conditioning vector
-            norm_cls : norm layer type (LayerNorm, RMSNorm)
+            norm_cls : norm layer type (LayerNorm)
             drop_path : dropout prob
 
             x : (B, T, HW, C) - input video signal in R^d

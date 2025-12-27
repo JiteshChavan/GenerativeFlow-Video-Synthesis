@@ -10,6 +10,8 @@ import torch.nn.functional as F
 import math
 import numpy as np
 
+import torch.nn.functional as F
+from torch.nn.attention import sdpa_kernel, SDPBackend
 
 def modulate(x, shift, scale):
     """
@@ -29,7 +31,7 @@ class SelfAttention(nn.Module):
         kqv_bias: bool - whether to use bias for kqv linear projections
     """
     def __init__(self, dim: int, n_head: int=16, kqv_bias=False):
-        super().__init()
+        super().__init__()
         assert dim % n_head == 0, f"dimensionality of the neural representation :{dim} is not divisible by the specified number of attention heads: {n_head}"
 
         
@@ -51,17 +53,18 @@ class SelfAttention(nn.Module):
         B, aux_B, T, C = x.shape
 
         q, k, v = self.qkv(x).chunk(3, dim=-1) # 3x(B, b, T, C)
-        q = q.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
-        k = k.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
-        v = v.view(B, aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, b, T, C) -> (B, b, nh, T, hs)
+        q = q.view(B * aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, T, nh, hs) -> (B, nh, T, hs)
+        k = k.view(B * aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, T, nh, hs) -> (B, nh, T, hs)
+        v = v.view(B * aux_B, T, self.n_head, self.head_size).transpose(-2, -3) #(B, T, nh, hs) -> (B, nh, T, hs)
 
         # att = (q @ k.transpose(-1,-2)) / math.sqrt(self.head_size)
         # att = F.softmax(att, dim=-1)
         # y = att @ v
 
-
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=False) #(B, b, nh, T, hs)
-
+        #y = F.scaled_dot_product_attention(q, k, v, is_causal=False) #(B, b, nh, T, hs)
+        with sdpa_kernel([SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
+            y = F.scaled_dot_product_attention(q, k, v, is_causal=False)  # (B*b_aux, nh, T, hs)
+        
         y = y.transpose(-2, -3).contiguous().view(B, aux_B, T, C) # merge heads (B, b, T, C)
         y = self.proj(y)
         return y
