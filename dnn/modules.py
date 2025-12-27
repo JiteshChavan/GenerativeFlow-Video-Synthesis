@@ -22,6 +22,22 @@ def modulate(x, shift, scale):
     x = x * (1 + scale[:, None, None, :]) + shift[:, None, None, :]
     return x
 
+class FinalLayer(nn.Module):
+    """
+        Final Layer of the dnn
+    """
+    def __init__(self, dim: int, patch_size: int, out_channels: int):
+        super().__init__()
+        self.norm_final = nn.LayerNorm(dim, elementwise_affine=False, eps=1e-6)
+        self.adaLN_modulation = nn.Sequential(nn.SiLU(), nn.Linear(dim, 2*dim, bias=True))
+        self.linear = nn.Linear(dim, patch_size * patch_size * out_channels, bias=True)
+    
+    def forward(self, x, y):
+        scale, shift = self.adaLN_modulation(y).chunk(2, dim=-1)
+        x = modulate(self.norm_final(x), shift, scale)
+        x = self.linear(x)
+        return x
+
 class SelfAttention(nn.Module):
     """
         SelfAttention Module, aggregates information across sequence into individual fragments
@@ -306,3 +322,30 @@ class DropPath(nn.Module):
         return f"drop_prob={round(self.drop_prob,3):0.3f}"
 
 
+def drop_path (x, drop_prob: float = 0.0, training: bool = False, scale_by_keep: bool = True):
+    """
+    Randomly kill all activations for some examples and scale up survivors to retain same expected value, so we dont have to upscale
+    during inference when dropout is disabled
+
+    Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks)
+
+    This is the same as the DropConnect implementation for EfficientNet, however, the original name is misleading
+    as 'Drop Connect' is a different form of droupout in a separate paper.
+    See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956
+    This implementation opts to changing the layer and the argument names to 'drop path' and 'drop_prob' rather than
+    DropConnect and survival_rate respectively
+    """
+    if drop_prob == 0.0 or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1) # (B, T, C) -> (B, 1, 1) so that works with diff dim tensors, not just 2D convnets
+    # new tensor same device and dtype as x
+    random_tensor = x.new_empty(shape).bernoulli_(keep_prob) # A tensor of shape (B, [1]*(x.ndim-1)) containing 0/1 with keep_prob; broad castable
+    
+    # if we dont scale_by_keep, during training mask * x scales output down by keep_prob on average
+    # to rectify we have to multiply by keep_prob during inference
+    # with scaling (inverted dropout) mask = mask / keep_prob, it automatically rectifies by scaling surviving units up by keep_prob
+    # so the expected value stays the same during train and test time
+    if keep_prob > 0.0 and scale_by_keep:
+        random_tensor.div_(keep_prob) 
+    return x * random_tensor
