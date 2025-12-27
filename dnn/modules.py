@@ -287,3 +287,18 @@ def get_1d_sinusoidal_embedding(n_embed, grid):
     cos_embed = np.cos(mutated_freqs)
     return np.concatenate([sin_embed, cos_embed], axis=1)
 
+class DropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample/ example level dropout (when applied in main path of residual blocks)
+    Kills all activations across all tokens/channels for some random examples in a batch
+    """
+
+    def __init__(self, drop_prob: float=0.0, scale_by_keep:bool=True):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+        self.scale_by_keep = scale_by_keep
+    
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
+    
+    def extra_repr(self):
+        return f"drop_prob={round(self.drop_prob,3):0.3f}"
