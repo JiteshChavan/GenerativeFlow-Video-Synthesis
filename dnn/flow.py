@@ -42,4 +42,72 @@ class FlowMatching:
         u_theta = self.dnn(x_t, t, c)
 
         loss = ((u_theta - u_target)**2).mean()
-        return loss 
+        return loss
+    
+
+class FlowSampler:
+    """
+        Flow ODE sampler.
+
+        args:
+            sampler: ["euler", "heun"],
+            u_theta : flow field,
+    """
+
+    def __init__(self, u_theta, sampler="euler"):
+        assert sampler in ["euler", "heun"]
+        self.sampler = sampler
+        self.u_theta = u_theta
+
+    @staticmethod
+    def to_tensor(batch_size, t, device):
+        t = torch.ones(batch_size, device=device, dtype=torch.float32) * t
+        return t
+
+    def euler_step(self, u_theta, x_t, t, dt, c, cfg_scale):
+        
+        t = self.to_tensor(x_t.shape[0], t, device=x_t.device)
+        if cfg_scale == 1.0:
+            x_t = x_t + dt * u_theta.forward(x_t, t, c)
+        else:
+            x_t = x_t + dt * u_theta.forward_with_cfg(x_t, t, c, cfg_scale=cfg_scale)
+
+        return x_t
+    
+    def heun_step(self, u_theta, x_t, t, dt, c, cfg_scale, t_end=1.0):    
+        t_next_scalar = min(t+dt, t_end)
+        dt_eff = t_next_scalar - t
+
+        t_current = self.to_tensor(x_t.shape[0], t=t, device=x_t.device)
+        t_next = self.to_tensor(x_t.shape[0], t=t_next_scalar, device=x_t.device)
+
+        if cfg_scale == 1.0:
+            field_xt = u_theta.forward(x_t, t_current, c)
+            x_next = x_t + dt_eff * field_xt
+            field_next = u_theta.forward(x_next, t_next, c)
+        else:
+            field_xt = u_theta.forward_with_cfg(x_t, t_current, c, cfg_scale=cfg_scale)
+            x_next = x_t + dt_eff * field_xt
+            field_next = u_theta.forward_with_cfg(x_next, t_next, c, cfg_scale=cfg_scale)
+
+        net_field = (field_xt + field_next) * 0.5
+        x_t = x_t + dt_eff * net_field
+        return x_t
+    
+    @torch.no_grad()
+    def sample(self, x, c, steps=30, cfg_scale=3.0, t_end=1.0):
+
+        t = 0.0
+        dt = t_end / steps
+        for i in range(steps):
+            last = (i == steps - 1)
+
+            if self.sampler == "heun" and (not last):
+                x = self.heun_step(self.u_theta, x, t, dt, c, cfg_scale)
+            else:
+                x = self.euler_step(self.u_theta, x, t, dt, c, cfg_scale)
+            
+            t = (i+1) * t_end / steps
+        return x
+        # 0 0.33 0.66 1.0
+    

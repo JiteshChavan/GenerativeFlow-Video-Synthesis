@@ -276,3 +276,17 @@ Models = {
     "FlowField_XS/4" : flowField_xs4,
     "FlowField_S/4" : flowField_s4,
 }
+
+def create_dnn(config):
+    assert config.dnn_spec in Models.keys(), f"Invalid dnn_spec: {config.dnn_spec}"
+    return Models[config.dnn_spec](
+            in_channels = config.in_channels,
+            out_channels = config.out_channels, 
+            spatial_resolution=config.latent_resolution, 
+            temporal_resolution = config.temporal_resolution,
+            learnable_pe = config.learnable_pe,
+            label_dropout = config.label_dropout,
+            drop_path = config.drop_path,
+            num_classes = config.num_classes,
+            use_temporal_attention = config.use_temporal_attention
+    )
