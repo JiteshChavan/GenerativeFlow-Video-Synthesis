@@ -19,4 +19,6 @@ pip install -e .
 
 # Starting training:
 cd flow/scripts
+
+# Run script as 
 bash grad_acc_flowS4.sh
