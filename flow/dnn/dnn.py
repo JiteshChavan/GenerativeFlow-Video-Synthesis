@@ -3,8 +3,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 
-from modules import SelfAttention, FinalLayer, TimeStepEmbedder,TemporalEmbedder, LabelEmbedder, GatedMLP, DropPath, modulate
-from modules import get_2d_sincos_pos_embed
+from .modules import SelfAttention, FinalLayer, TimeStepEmbedder,TemporalEmbedder, LabelEmbedder, GatedMLP, DropPath, modulate
+from .modules import get_2d_sincos_pos_embed
 from timm.layers import PatchEmbed
 
 import math
@@ -280,10 +280,19 @@ def flowField_s2(**kwargs):
         **kwargs,
     )
 
+def flowField_M2(**kwargs):
+    return DNN(
+        depth=12,
+        dim=768,
+        patch_size=2,
+        **kwargs,
+    )
+
 Models = {
     "FlowField_XS/4" : flowField_xs4,
     "FlowField_S/4" : flowField_s4,
     "FlowField_S/2" : flowField_s2,
+    "FlowField_M/2" : flowField_M2,
 }
 
 def create_dnn(config):

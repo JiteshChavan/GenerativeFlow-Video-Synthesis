@@ -15,7 +15,7 @@ LIMIT_SAMPLES=10
 
 export WANDB_API_KEY="2f92f218fe46708930c460c6f57055ac6ce1361c"
 export PYTHONPATH=/mnt/e/Research/flowVideo
-torchrun --standalone --nproc_per_node=$NUM_GPUS ../dnn/train.py --exp $EXP --data-dir ../data/ \
+torchrun --standalone --nproc_per_node=$NUM_GPUS -m flow.dnn.train --exp $EXP --data-dir ../data/ \
   --dnn-spec FlowField_S/4 \
   --num-classes 12 \
   --temporal-res 72\

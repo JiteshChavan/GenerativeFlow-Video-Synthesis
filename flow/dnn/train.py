@@ -14,14 +14,8 @@ from time import time
 from tqdm import tqdm
 import numpy as np
 
-# TODO: remove if redundant
+
 import cv2
-
-
-
-
-
-
 
 import torch
 import torch.nn as nn
@@ -35,16 +29,30 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 from diffusers.models import AutoencoderKL
-from dnn import create_dnn
-from flow import FlowMatching, FlowSampler
+from .dnn import create_dnn
+from .flowMatching import FlowMatching, FlowSampler
 
-from data.loader import build_wds_loader
+from flow.data.loader import build_wds_loader
 
 import inspect
 import glob
 import tarfile
 import wandb
 
+
+import subprocess
+
+def reencode_h264(in_path: str, out_path: str):
+    # Browser/W&B friendly MP4: H.264 + yuv420p + faststart
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", in_path,
+        "-vcodec", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        out_path,
+    ]
+    subprocess.run(cmd, check=True)
 
 def create_logger(logging_dir):
     """
@@ -423,7 +431,7 @@ def main(args):
             vae.to(device)
             with torch.no_grad():
                 with torch.autocast("cuda", dtype=torch.bfloat16, enabled=True):
-                    samples = sampler.sample(zs, c, steps=30, cfg_scale=4.0) # (B, T, 4, H, W)
+                    samples = sampler.sample(zs, c, steps=40, cfg_scale=4.0) # (B, T, 4, H, W)
                 
                 B, T, C, H, W = samples.shape
                 samples = samples.reshape(B*T, C, H, W)
@@ -452,8 +460,15 @@ def main(args):
             videos = []
             for b in range(B):
                 cls = int(c[b].item())
+                tmp = os.path.join(sample_dir, f"class-{cls}-step{current_step}-{b}-tmp.mp4")
                 out = os.path.join(sample_dir, f"class-{cls}-step{current_step}-{b}.mp4")
-                save_mp4(samples[b], out, fps=args.sample_fps)
+
+                save_mp4(samples[b], tmp, fps=args.sample_fps)
+                reencode_h264(tmp, out)
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
                 videos.append(wandb.Video(out, fps=args.sample_fps, format="mp4"))
             wandb.log({"samples": videos}, step=current_step, commit=will_log_samples)
             DNN.train()

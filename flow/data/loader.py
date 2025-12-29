@@ -38,12 +38,12 @@ def build_wds_loader(
     drop_last: bool = True,
     pin_memory: bool = True,
     persistent_workers: bool = True,
-    limit_samples: int = 0,          # <--- ADD THIS
+    limit_samples: int = 0,          
 ):
     distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
     rank = torch.distributed.get_rank() if distributed else 0
 
-    # If we're limiting samples, don't shardshuffle or you'll get a different subset each time.
+    
     if limit_samples > 0:
         shard_shuffle = False
 
@@ -52,17 +52,17 @@ def build_wds_loader(
     dataset = dataset.split_by_node() if hasattr(dataset, "split_by_node") else dataset.compose(wds.split_by_node)
     dataset = dataset.split_by_worker() if hasattr(dataset, "split_by_worker") else dataset.compose(wds.split_by_worker)
 
-    # Deterministic order changes with epoch (if you want).
+    
     if is_train:
         dataset = dataset.compose(wds.detshuffle(shuffle_buf, seed=seed + epoch))
-        dataset = dataset.shuffle(shuffle_buf)
+        
 
-    # ---- LIMIT + REPEAT (DDP-safe) ----
+    
     if limit_samples > 0:
-        # Important: take AFTER split_by_node/worker, so each rank/worker sees a consistent subset.
-        dataset = dataset.slice(limit_samples)   # first N samples in the stream
-        dataset = dataset.repeat()               # infinite stream
-    # ----------------------------------
+        
+        dataset = dataset.slice(limit_samples)   
+        #dataset = dataset.repeat()               
+    
 
     dataset = dataset.map(_decode_pt)
 
