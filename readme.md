@@ -8,7 +8,7 @@ cd GenerativeFlow-Videos
 download data shard:
 https://drive.google.com/file/d/1KVQI1l-qH-D5YYJnA3pS9jJQCHK05Tsi/view?usp=drive_link
 
-extract the zip in GenerativeFlow-Videos/data
+extract the zip in GenerativeFlow-Videos/flow/data
 
 
 conda create -n flow python=3.10 -y
