@@ -563,6 +563,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--limit-samples", type=int, default=0, help="If >0: use only N samples per rank and repeat forever (debug/overfit).")
 
+    parser.add_argument("--p-hflip", type=float, default=0.5)
+    parser.add_argument("--p-time-reverse", type=float, default=0.0)
+
 
     args = parser.parse_args()
     main(args)
