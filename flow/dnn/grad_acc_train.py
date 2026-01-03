@@ -463,7 +463,7 @@ def main(args):
                 del samples
                 torch.cuda.empty_cache()
 
-                samples = torch.cat(decoded, dim=0) # (B * T, 3, H, W)
+                samples = torch.cat(decoded, dim=0) # (B * T, 3, spatial_res, spatial_res)
                 samples = samples.reshape(B, T, 3, samples.shape[-2], samples.shape[-1])
 
             vae.to("cpu")
@@ -511,7 +511,7 @@ if __name__ == "__main__":
     
 
     parser.add_argument("--global-seed", type=int, help="rng seed", required=True)
-    parser.add_argument("--num-classes", type=int, default=12, help="rng seed")
+    parser.add_argument("--num-classes", type=int, default=12)
     parser.add_argument("--use-wandb", action="store_true")
 
     parser.add_argument("--spatial-res", type=int, default=320)
