@@ -81,7 +81,7 @@ A marginal vector field $u^{\theta}(x,t,c)$ is approximated by a DNN, where $x$ 
 Training uses **conditional OT flow matching**: sample an interpolation between data latents and noise, then regress the model’s vector field to the target conditional flow field with an MSE objective.  
 At inference, we integrate the learned ODE from noise $\rightarrow$ data using a lightweight solver (Euler/Heun) with low NFE.
 
-To improve temporal consistency efficiently, the DNN uses **factorized space–time attention**: (1) spatial self-attention within each frame, then (2) temporal self-attention across frames per spatial location. This reduces attention cost from full space–time $O((T\!\cdot\!HW)^2)$ to $O\big(T\,(HW)^2 + HW\,T^2\big)$.
+To improve temporal consistency efficiently, the DNN uses **factorized space–time attention**: (1) spatial self-attention within each frame, then (2) temporal self-attention across frames per spatial location. This reduces attention cost from full space–time $O\big((T \cdot HW)^2\big)$ to $O\big(T \cdot (HW)^2 + HW \cdot T^2\big)$.
 
 Conditioning (class + time) is injected via adaptive normalization (AdaLN-style modulation) and classifier-free guidance (CFG) is applied at sampling time.
 
