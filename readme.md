@@ -82,10 +82,9 @@ Training uses **conditional OT flow matching**: sample an interpolation between 
 At inference, we integrate the learned ODE from noise $\rightarrow$ data using a lightweight solver (Euler/Heun) with low NFE.
 
 
-## Naive Attention:
-Attention is naively computed over all tokens across space and time for a given vector representation of video $z \in \mathbb{R}^{d=T\times H \times W \times C}$ resulting in computational footprint $O\big((T \cdot HW)^2\big)$, which makes training over high dimensional vector representations often intractable.
-
-![NaiveAttention](/assets/NaiveAttention.png)
+## Factorized Attention:
+Factorized space–time attention applies spatial MHSA per frame and temporal MHSA per pixel enabling efficient temporal consistency. Cost: $O((T\cdot HW)^2) \rightarrow O(T(HW)^2 + HW\,T^2)$.
+![NaiveAttention](/assets/FactorizedAttention.png)
 
 
 To improve temporal consistency efficiently, the DNN uses **factorized space–time attention**: (1) spatial self-attention within each frame, then (2) temporal self-attention across frames per spatial location. This reduces attention cost from full space–time $O\big((T \cdot HW)^2\big)$ to $O\big(T \cdot (HW)^2 + HW \cdot T^2\big)$.
