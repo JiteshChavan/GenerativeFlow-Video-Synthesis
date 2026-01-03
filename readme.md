@@ -29,7 +29,7 @@ DDP-ready training + data pipeline + one-command sampling and training.
 
 
 ## Setup:
-git clone https://github.com/JiteshChavan/GenerativeFlow-Videos.git
+git clone https://github.com/JiteshChavan/GenerativeFlow-Video-Synthesis.git
 
 cd GenerativeFlow-Videos
 
