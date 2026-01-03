@@ -77,11 +77,11 @@ python -m flow.dnn.sample --inference-idx demo --ckpt-path $CKPT_PATH \
 
 ## Method (Conditional OT Flow Matching + Factorized Space–Time Attention)
 
-A marginal vector field $\(u_\theta(x,t,c)\)$ is approximated by a DNN, where \(x\) is a video latent, \(t\in[0,1]\) is continuous time, and \(c\) is a class condition.  
+A marginal vector field $u^{\theta}(x,t,c)$ is approximated by a DNN, where $x$ is a video latent, $t\in[0,1]$ is continuous time, and $c$ is a class condition.  
 Training uses **conditional OT flow matching**: sample an interpolation between data latents and noise, then regress the model’s vector field to the target conditional flow field with an MSE objective.  
-At inference, we integrate the learned ODE from noise \(\rightarrow\) data using a lightweight solver (Euler/Heun) with low NFE.
+At inference, we integrate the learned ODE from noise $\rightarrow$ data using a lightweight solver (Euler/Heun) with low NFE.
 
-To improve temporal consistency efficiently, the DNN uses **factorized space–time attention**: (1) spatial self-attention within each frame, then (2) temporal self-attention across frames per spatial location. This reduces attention cost from full space–time \(O((T\!\cdot\!HW)^2)\) to \(O\big(T\,(HW)^2 + HW\,T^2\big)\).
+To improve temporal consistency efficiently, the DNN uses **factorized space–time attention**: (1) spatial self-attention within each frame, then (2) temporal self-attention across frames per spatial location. This reduces attention cost from full space–time $O((T\!\cdot\!HW)^2)$ to $O\big(T\,(HW)^2 + HW\,T^2\big)$.
 
 Conditioning (class + time) is injected via adaptive normalization (AdaLN-style modulation) and classifier-free guidance (CFG) is applied at sampling time.
 
